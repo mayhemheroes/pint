@@ -1,0 +1,6 @@
+project: pint
+target: pint
+
+cmds:
+  - cmd: /pint lint @@
+    env: {}
