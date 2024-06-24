@@ -35,7 +35,7 @@ func (q metadataQuery) Run() queryResult {
 	ctx, cancel := context.WithTimeout(q.ctx, q.prom.timeout)
 	defer cancel()
 
-	qr := queryResult{expires: q.timestamp.Add(cacheExpiry * 2)}
+	var qr queryResult
 
 	args := url.Values{}
 	args.Set("metric", q.metric)
@@ -51,7 +51,8 @@ func (q metadataQuery) Run() queryResult {
 		return qr
 	}
 
-	qr.value, qr.err = streamMetadata(resp.Body)
+	meta, err := streamMetadata(resp.Body)
+	qr.value, qr.err = meta, err
 	return qr
 }
 
@@ -63,12 +64,12 @@ func (q metadataQuery) String() string {
 	return q.metric
 }
 
-func (q metadataQuery) CacheAfter() int {
-	return 0
+func (q metadataQuery) CacheKey() uint64 {
+	return hash(q.prom.unsafeURI, q.Endpoint(), q.metric)
 }
 
-func (q metadataQuery) CacheKey() uint64 {
-	return hash(q.prom.unsafeURI, q.Endpoint(), q.metric, q.timestamp.Round(cacheExpiry).Format(time.RFC3339))
+func (q metadataQuery) CacheTTL() time.Duration {
+	return time.Minute * 10
 }
 
 func (p *Prometheus) Metadata(ctx context.Context, metric string) (*MetadataResult, error) {

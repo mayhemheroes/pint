@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/cloudflare/pint/internal/checks"
 	"github.com/cloudflare/pint/internal/config"
@@ -55,7 +54,7 @@ func actionLint(c *cli.Context) error {
 	}
 
 	for _, prom := range meta.cfg.PrometheusServers {
-		prom.StartWorkers(time.Hour)
+		prom.StartWorkers()
 	}
 	defer meta.cleanup()
 
@@ -120,5 +119,5 @@ func verifyOwners(entries []discovery.Entry) (reports []reporter.Report) {
 			},
 		})
 	}
-	return
+	return reports
 }

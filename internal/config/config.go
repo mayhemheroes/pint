@@ -5,14 +5,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
+	"strings"
 	"time"
 
 	"golang.org/x/exp/slices"
+
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/cloudflare/pint/internal/checks"
 	"github.com/cloudflare/pint/internal/parser"
 	"github.com/cloudflare/pint/internal/promapi"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsimple"
 	"github.com/prometheus/common/model"
 	"github.com/rs/zerolog/log"
@@ -132,6 +137,14 @@ func (cfg *Config) GetChecksForRule(ctx context.Context, path string, r parser.R
 			name:  checks.RangeQueryCheckName,
 			check: checks.NewRangeQueryCheck(p),
 		})
+		allChecks = append(allChecks, checkMeta{
+			name:  checks.RuleDuplicateCheckName,
+			check: checks.NewRuleDuplicateCheck(p),
+		})
+		allChecks = append(allChecks, checkMeta{
+			name:  checks.LabelsConflictCheckName,
+			check: checks.NewLabelsConflictCheck(p),
+		})
 	}
 
 	for _, rule := range cfg.Rules {
@@ -176,6 +189,16 @@ func (cfg *Config) GetChecksForRule(ctx context.Context, path string, r parser.R
 	return enabled
 }
 
+func getContext() *hcl.EvalContext {
+	vars := map[string]cty.Value{}
+	for _, e := range os.Environ() {
+		if k, v, ok := strings.Cut(e, "="); ok {
+			vars[fmt.Sprintf("ENV_%s", k)] = cty.StringVal(v)
+		}
+	}
+	return &hcl.EvalContext{Variables: vars}
+}
+
 func Load(path string, failOnMissing bool) (cfg Config, err error) {
 	cfg = Config{
 		CI: &CI{
@@ -190,9 +213,10 @@ func Load(path string, failOnMissing bool) (cfg Config, err error) {
 		Rules: []Rule{},
 	}
 
-	if _, err := os.Stat(path); err == nil || failOnMissing {
+	if _, err = os.Stat(path); err == nil || failOnMissing {
 		log.Info().Str("path", path).Msg("Loading configuration file")
-		err = hclsimple.DecodeFile(path, nil, &cfg)
+		ectx := getContext()
+		err = hclsimple.DecodeFile(path, ectx, &cfg)
 		if err != nil {
 			return cfg, err
 		}
@@ -265,16 +289,16 @@ func Load(path string, failOnMissing bool) (cfg Config, err error) {
 			cfg.Prometheus[i].Concurrency = concurrency
 		}
 
-		cacheSize := prom.Cache
-		if cacheSize <= 0 {
-			cacheSize = 10000
-			cfg.Prometheus[i].Cache = cacheSize
-		}
-
 		rateLimit := prom.RateLimit
 		if rateLimit <= 0 {
 			rateLimit = 100
 			cfg.Prometheus[i].RateLimit = rateLimit
+		}
+
+		uptime := prom.Uptime
+		if uptime == "" {
+			uptime = "up"
+			cfg.Prometheus[i].Uptime = uptime
 		}
 
 		upstreams := []*promapi.Prometheus{
@@ -283,7 +307,14 @@ func Load(path string, failOnMissing bool) (cfg Config, err error) {
 		for _, uri := range prom.Failover {
 			upstreams = append(upstreams, promapi.NewPrometheus(prom.Name, uri, prom.Headers, timeout, concurrency, rateLimit))
 		}
-		cfg.PrometheusServers = append(cfg.PrometheusServers, promapi.NewFailoverGroup(prom.Name, upstreams, cacheSize, prom.Required))
+		var include, exclude []*regexp.Regexp
+		for _, path := range prom.Include {
+			include = append(include, strictRegex(path))
+		}
+		for _, path := range prom.Exclude {
+			exclude = append(exclude, strictRegex(path))
+		}
+		cfg.PrometheusServers = append(cfg.PrometheusServers, promapi.NewFailoverGroup(prom.Name, upstreams, prom.Required, uptime, include, exclude))
 	}
 
 	for _, rule := range cfg.Rules {

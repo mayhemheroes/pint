@@ -44,7 +44,7 @@ func (c Reject) Reporter() string {
 	return RejectCheckName
 }
 
-func (c Reject) Check(ctx context.Context, rule parser.Rule, entries []discovery.Entry) (problems []Problem) {
+func (c Reject) Check(ctx context.Context, path string, rule parser.Rule, entries []discovery.Entry) (problems []Problem) {
 	if c.checkLabels && rule.AlertingRule != nil && rule.AlertingRule.Labels != nil {
 		for _, label := range rule.AlertingRule.Labels.Items {
 			problems = append(problems, c.reject(rule, label, "label")...)
@@ -60,7 +60,7 @@ func (c Reject) Check(ctx context.Context, rule parser.Rule, entries []discovery
 			problems = append(problems, c.reject(rule, ann, "annotation")...)
 		}
 	}
-	return
+	return problems
 }
 
 func (c Reject) reject(rule parser.Rule, label *parser.YamlKeyValue, kind string) (problems []Problem) {
@@ -82,5 +82,5 @@ func (c Reject) reject(rule parser.Rule, label *parser.YamlKeyValue, kind string
 			Severity: c.severity,
 		})
 	}
-	return
+	return problems
 }

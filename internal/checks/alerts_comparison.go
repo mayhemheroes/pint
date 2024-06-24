@@ -31,7 +31,7 @@ func (c ComparisonCheck) Reporter() string {
 	return ComparisonCheckName
 }
 
-func (c ComparisonCheck) Check(ctx context.Context, rule parser.Rule, entries []discovery.Entry) (problems []Problem) {
+func (c ComparisonCheck) Check(ctx context.Context, path string, rule parser.Rule, entries []discovery.Entry) (problems []Problem) {
 	if rule.AlertingRule == nil {
 		return
 	}
@@ -67,7 +67,7 @@ func (c ComparisonCheck) Check(ctx context.Context, rule parser.Rule, entries []
 		Severity: Warning,
 	})
 
-	return
+	return problems
 }
 
 func hasComparision(n promParser.Node) *promParser.BinaryExpr {

@@ -1,13 +1,11 @@
-FROM golang:1.19.3-alpine
-COPY . /src
-WORKDIR /src
-RUN apk add make git
-RUN make
+FROM golang:1.19.1-buster as go-target
+ADD . /pint
+WORKDIR /pint/cmd/pint
+RUN go build
 
-FROM debian:stable-20221024
-RUN apt-get update --yes && \
-    apt-get install --no-install-recommends --yes git ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
-COPY --from=0 /src/pint /usr/local/bin/pint
-WORKDIR /code
-CMD ["/usr/local/bin/pint"]
+FROM golang:1.19.1-buster
+COPY --from=go-target /pint/cmd/pint/pint /
+COPY --from=go-target /pint/*.yml /testsuite/
+
+ENTRYPOINT []
+CMD ["/pint", "lint", "@@"]

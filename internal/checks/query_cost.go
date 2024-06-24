@@ -44,11 +44,11 @@ func (c CostCheck) Reporter() string {
 	return CostCheckName
 }
 
-func (c CostCheck) Check(ctx context.Context, rule parser.Rule, entries []discovery.Entry) (problems []Problem) {
+func (c CostCheck) Check(ctx context.Context, path string, rule parser.Rule, entries []discovery.Entry) (problems []Problem) {
 	expr := rule.Expr()
 
 	if expr.SyntaxError != nil {
-		return
+		return problems
 	}
 
 	query := fmt.Sprintf("count(%s)", expr.Value.Value)
@@ -62,7 +62,7 @@ func (c CostCheck) Check(ctx context.Context, rule parser.Rule, entries []discov
 			Text:     text,
 			Severity: severity,
 		})
-		return
+		return problems
 	}
 
 	var series int
@@ -75,7 +75,7 @@ func (c CostCheck) Check(ctx context.Context, rule parser.Rule, entries []discov
 		result, err := c.prom.Query(ctx, BytesPerSampleQuery)
 		if err == nil {
 			for _, s := range result.Series {
-				estimate = fmt.Sprintf(" with %s estimated memory usage", output.HumanizeBytes(int(float64(s.Value)*float64(series))))
+				estimate = fmt.Sprintf(" with %s estimated memory usage", output.HumanizeBytes(int(s.Value*float64(series))))
 				break
 			}
 		}
@@ -95,5 +95,5 @@ func (c CostCheck) Check(ctx context.Context, rule parser.Rule, entries []discov
 		Text:     fmt.Sprintf("%s returned %d result(s)%s%s", promText(c.prom.Name(), qr.URI), series, estimate, above),
 		Severity: severity,
 	})
-	return
+	return problems
 }

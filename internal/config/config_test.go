@@ -37,7 +37,6 @@ func TestDisableOnlineChecksWithPrometheus(t *testing.T) {
 	err := os.WriteFile(path, []byte(`
 prometheus "prom" {
   uri     = "http://localhost"
-  timeout = "1s"
 }
 `), 0o644)
 	require.NoError(t, err)
@@ -166,6 +165,8 @@ prometheus "prom" {
 				checks.SeriesCheckName + "(prom)",
 				checks.VectorMatchingCheckName + "(prom)",
 				checks.RangeQueryCheckName + "(prom)",
+				checks.RuleDuplicateCheckName + "(prom)",
+				checks.LabelsConflictCheckName + "(prom)",
 			},
 		},
 		{
@@ -189,6 +190,8 @@ prometheus "prom" {
 				checks.SeriesCheckName + "(prom)",
 				checks.VectorMatchingCheckName + "(prom)",
 				checks.RangeQueryCheckName + "(prom)",
+				checks.RuleDuplicateCheckName + "(prom)",
+				checks.LabelsConflictCheckName + "(prom)",
 			},
 		},
 		{
@@ -212,6 +215,8 @@ checks {
 # pint disable promql/series
 # pint disable promql/vector_matching
 # pint disable promql/range_query
+# pint disable rule/duplicate
+# pint disable labels/conflict
 - record: foo
   expr: sum(foo)
 `),
@@ -305,6 +310,8 @@ prometheus "prom" {
 				checks.SeriesCheckName + "(prom)",
 				checks.VectorMatchingCheckName + "(prom)",
 				checks.RangeQueryCheckName + "(prom)",
+				checks.RuleDuplicateCheckName + "(prom)",
+				checks.LabelsConflictCheckName + "(prom)",
 			},
 		},
 		{
@@ -333,6 +340,8 @@ prometheus "ignore" {
 				checks.SeriesCheckName + "(prom)",
 				checks.VectorMatchingCheckName + "(prom)",
 				checks.RangeQueryCheckName + "(prom)",
+				checks.RuleDuplicateCheckName + "(prom)",
+				checks.LabelsConflictCheckName + "(prom)",
 			},
 		},
 		{
@@ -449,6 +458,8 @@ prometheus "prom2" {
 - record: foo
   # pint disable promql/rate(prom2)
   # pint disable promql/vector_matching(prom1)
+  # pint disable rule/duplicate(prom1)
+  # pint disable labels/conflict(prom2)
   expr: sum(foo)
 `),
 			checks: []string{
@@ -460,9 +471,11 @@ prometheus "prom2" {
 				checks.RegexpCheckName,
 				checks.RateCheckName + "(prom1)",
 				checks.RangeQueryCheckName + "(prom1)",
+				checks.LabelsConflictCheckName + "(prom1)",
 				checks.SeriesCheckName + "(prom2)",
 				checks.VectorMatchingCheckName + "(prom2)",
 				checks.RangeQueryCheckName + "(prom2)",
+				checks.RuleDuplicateCheckName + "(prom2)",
 				checks.CostCheckName + "(prom1)",
 			},
 		},
@@ -551,6 +564,8 @@ rule {
 # pint disable promql/vector_matching(prom1)
 # pint disable promql/vector_matching(prom2)
 # pint disable promql/range_query
+# pint disable rule/duplicate
+# pint disable labels/conflict
 - record: foo
   # pint disable promql/fragile
   # pint disable promql/regexp
@@ -812,6 +827,8 @@ checks {
     "promql/rate",
 	"promql/vector_matching",
 	"promql/range_query",
+	"rule/duplicate",
+	"labels/conflict",
   ]
 }
 prometheus "prom1" {
@@ -870,6 +887,8 @@ prometheus "prom1" {
 				checks.SeriesCheckName + "(prom1)",
 				checks.VectorMatchingCheckName + "(prom1)",
 				checks.RangeQueryCheckName + "(prom1)",
+				checks.RuleDuplicateCheckName + "(prom1)",
+				checks.LabelsConflictCheckName + "(prom1)",
 				checks.AlertsCheckName + "(prom1)",
 			},
 		},
@@ -1172,7 +1191,46 @@ checks {
 				checks.FragileCheckName,
 				checks.RegexpCheckName,
 			},
-			disabledChecks: []string{"promql/rate", "promql/vector_matching"},
+			disabledChecks: []string{"promql/rate", "promql/vector_matching", "rule/duplicate", "labels/conflict"},
+		},
+		{
+			title: "two prometheus servers / snoozed checks via comment",
+			config: `
+prometheus "prom1" {
+  uri     = "http://localhost/1"
+  timeout = "1s"
+}
+prometheus "prom2" {
+  uri     = "http://localhost/2"
+  timeout = "1s"
+}
+checks {
+  disabled = [ "alerts/template", "promql/regexp" ]
+}
+`,
+			path: "rules.yml",
+			rule: newRule(t, `
+# pint snooze 2099-11-AB labels/conflict
+# pint snooze 2099-11-28 labels/conflict won't work
+# pint snooze 2099-11-28
+# pint snooze 2099-11-28 promql/series(prom1)
+# pint snooze 2099-11-28T10:24:18Z promql/range_query
+# pint snooze 2099-11-28 rule/duplicate
+# pint snooze 2099-11-28T00:00:00+00:00 promql/vector_matching
+- record: foo
+  expr: sum(foo)
+# pint file/disable promql/vector_matching
+`),
+			checks: []string{
+				checks.SyntaxCheckName,
+				checks.AlertForCheckName,
+				checks.ComparisonCheckName,
+				checks.FragileCheckName,
+				checks.LabelsConflictCheckName + "(prom1)",
+				checks.SeriesCheckName + "(prom2)",
+				checks.LabelsConflictCheckName + "(prom2)",
+			},
+			disabledChecks: []string{"promql/rate"},
 		},
 	}
 
@@ -1391,6 +1449,14 @@ func TestConfigErrors(t *testing.T) {
   }
 }`,
 			err: `not a valid duration string: "abc"`,
+		},
+		{
+			config: `rule {
+  cost {
+    severity  = "xxx"
+  }
+}`,
+			err: "unknown severity: xxx",
 		},
 	}
 

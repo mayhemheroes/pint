@@ -2,6 +2,7 @@ package promapi
 
 import (
 	"context"
+	"regexp"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -29,20 +30,38 @@ func (e *FailoverGroupError) IsStrict() bool {
 	return e.isStrict
 }
 
+func cacheCleaner(cache *queryCache, interval time.Duration, quit chan bool) {
+	ticker := time.NewTicker(interval)
+	for {
+		select {
+		case <-quit:
+			return
+		case <-ticker.C:
+			cache.gc()
+		}
+	}
+}
+
 type FailoverGroup struct {
 	name           string
 	servers        []*Prometheus
-	cacheSize      int
 	strictErrors   bool
+	uptimeMetric   string
 	cacheCollector *cacheCollector
+	quitChan       chan bool
+
+	pathsInclude []*regexp.Regexp
+	pathsExclude []*regexp.Regexp
 }
 
-func NewFailoverGroup(name string, servers []*Prometheus, cacheSize int, strictErrors bool) *FailoverGroup {
+func NewFailoverGroup(name string, servers []*Prometheus, strictErrors bool, uptimeMetric string, include, exclude []*regexp.Regexp) *FailoverGroup {
 	return &FailoverGroup{
 		name:         name,
 		servers:      servers,
-		cacheSize:    cacheSize,
 		strictErrors: strictErrors,
+		uptimeMetric: uptimeMetric,
+		pathsInclude: include,
+		pathsExclude: exclude,
 	}
 }
 
@@ -50,8 +69,32 @@ func (fg *FailoverGroup) Name() string {
 	return fg.name
 }
 
-func (fg *FailoverGroup) StartWorkers(maxCacheLifeTime time.Duration) {
-	queryCache := newQueryCache(fg.cacheSize, maxCacheLifeTime)
+func (fg *FailoverGroup) UptimeMetric() string {
+	return fg.uptimeMetric
+}
+
+func (fg *FailoverGroup) IsEnabledForPath(path string) bool {
+	if len(fg.pathsInclude) == 0 && len(fg.pathsExclude) == 0 {
+		return true
+	}
+	for _, re := range fg.pathsExclude {
+		if re.MatchString(path) {
+			return false
+		}
+	}
+	for _, re := range fg.pathsInclude {
+		if re.MatchString(path) {
+			return true
+		}
+	}
+	return false
+}
+
+func (fg *FailoverGroup) StartWorkers() {
+	queryCache := newQueryCache(time.Hour)
+	fg.quitChan = make(chan bool)
+	go cacheCleaner(queryCache, time.Minute*2, fg.quitChan)
+
 	fg.cacheCollector = newCacheCollector(queryCache, fg.name)
 	prometheus.MustRegister(fg.cacheCollector)
 	for _, prom := range fg.servers {
@@ -65,6 +108,7 @@ func (fg *FailoverGroup) Close() {
 		prom.Close()
 	}
 	prometheus.Unregister(fg.cacheCollector)
+	fg.quitChan <- true
 }
 
 func (fg *FailoverGroup) CleanCache() {

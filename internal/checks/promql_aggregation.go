@@ -39,7 +39,7 @@ func (c AggregationCheck) Reporter() string {
 	return AggregationCheckName
 }
 
-func (c AggregationCheck) Check(ctx context.Context, rule parser.Rule, entries []discovery.Entry) (problems []Problem) {
+func (c AggregationCheck) Check(ctx context.Context, path string, rule parser.Rule, entries []discovery.Entry) (problems []Problem) {
 	expr := rule.Expr()
 	if expr.SyntaxError != nil {
 		return nil
@@ -76,7 +76,7 @@ func (c AggregationCheck) Check(ctx context.Context, rule parser.Rule, entries [
 		})
 	}
 
-	return
+	return problems
 }
 
 func (c AggregationCheck) checkNode(node *parser.PromQLNode) (problems []exprProblem) {
@@ -103,7 +103,7 @@ func (c AggregationCheck) checkNode(node *parser.PromQLNode) (problems []exprPro
 		if !n.Without && !c.keep && len(n.Grouping) == 0 {
 			// most outer aggregation is stripping a label that we want to get rid of
 			// we can skip further checks
-			return
+			return problems
 		}
 
 		var found bool
@@ -132,7 +132,7 @@ func (c AggregationCheck) checkNode(node *parser.PromQLNode) (problems []exprPro
 			// most outer aggregation is stripping a label that we want to get rid of
 			// we can skip further checks
 			if found && !c.keep {
-				return
+				return problems
 			}
 		} else {
 			if found && !c.keep {
@@ -152,7 +152,7 @@ func (c AggregationCheck) checkNode(node *parser.PromQLNode) (problems []exprPro
 			// most outer aggregation is stripping a label that we want to get rid of
 			// we can skip further checks
 			if !found && !c.keep {
-				return
+				return problems
 			}
 		}
 	}
@@ -177,5 +177,5 @@ NEXT:
 		problems = append(problems, c.checkNode(child)...)
 	}
 
-	return
+	return problems
 }

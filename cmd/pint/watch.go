@@ -91,15 +91,15 @@ func actionWatch(c *cli.Context) error {
 	pidfile := c.String(pidfileFlag)
 	if pidfile != "" {
 		pid := os.Getpid()
-		err := os.WriteFile(pidfile, []byte(fmt.Sprintf("%d\n", pid)), 0o644)
+		err = os.WriteFile(pidfile, []byte(fmt.Sprintf("%d\n", pid)), 0o644)
 		if err != nil {
 			return err
 		}
 		log.Info().Str("path", pidfile).Msg("Pidfile created")
 		defer func() {
-			err := os.RemoveAll(pidfile)
-			if err != nil {
-				log.Error().Err(err).Str("path", pidfile).Msg("Failed to remove pidfile")
+			pidErr := os.RemoveAll(pidfile)
+			if pidErr != nil {
+				log.Error().Err(pidErr).Str("path", pidfile).Msg("Failed to remove pidfile")
 			}
 			log.Info().Str("path", pidfile).Msg("Pidfile removed")
 		}()
@@ -133,8 +133,8 @@ func actionWatch(c *cli.Context) error {
 		WriteTimeout: time.Second * 30,
 	}
 	go func() {
-		if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-			log.Error().Err(err).Str("listen", listen).Msg("HTTP server returned an error")
+		if httpErr := server.ListenAndServe(); !errors.Is(httpErr, http.ErrServerClosed) {
+			log.Error().Err(httpErr).Str("listen", listen).Msg("HTTP server returned an error")
 		}
 	}()
 	log.Info().Str("address", listen).Msg("Started HTTP server")
@@ -142,7 +142,7 @@ func actionWatch(c *cli.Context) error {
 	interval := c.Duration(intervalFlag)
 
 	for _, prom := range meta.cfg.PrometheusServers {
-		prom.StartWorkers(interval * 3)
+		prom.StartWorkers()
 	}
 
 	// start timer to run every $interval
@@ -192,9 +192,6 @@ func startTimer(ctx context.Context, cfg config.Config, workers int, interval ti
 					log.Error().Err(err).Msg("Got an error when running checks")
 				}
 				checkIterationsTotal.Inc()
-				for _, prom := range cfg.PrometheusServers {
-					prom.CleanCache()
-				}
 			case <-stop:
 				ticker.Stop()
 				log.Info().Msg("Background worker finished")
@@ -209,20 +206,23 @@ func startTimer(ctx context.Context, cfg config.Config, workers int, interval ti
 }
 
 type problemCollector struct {
-	lock        sync.Mutex
-	cfg         config.Config
-	paths       []string
-	summary     *reporter.Summary
-	problem     *prometheus.Desc
-	problems    *prometheus.Desc
-	minSeverity checks.Severity
-	maxProblems int
+	lock             sync.Mutex
+	cfg              config.Config
+	paths            []string
+	fileOwners       map[string]string
+	summary          *reporter.Summary
+	problem          *prometheus.Desc
+	problems         *prometheus.Desc
+	fileOwnersMetric *prometheus.Desc
+	minSeverity      checks.Severity
+	maxProblems      int
 }
 
 func newProblemCollector(cfg config.Config, paths []string, minSeverity checks.Severity, maxProblems int) *problemCollector {
 	return &problemCollector{
-		cfg:   cfg,
-		paths: paths,
+		cfg:        cfg,
+		paths:      paths,
+		fileOwners: map[string]string{},
 		problem: prometheus.NewDesc(
 			"pint_problem",
 			"Prometheus rule problem reported by pint",
@@ -233,6 +233,12 @@ func newProblemCollector(cfg config.Config, paths []string, minSeverity checks.S
 			"pint_problems",
 			"Total number of problems reported by pint",
 			[]string{},
+			prometheus.Labels{},
+		),
+		fileOwnersMetric: prometheus.NewDesc(
+			"pint_rule_file_owner",
+			"This is a boolean metric that describes who is the configured owner for given rule file",
+			[]string{"filename", "owner"},
 			prometheus.Labels{},
 		),
 		minSeverity: minSeverity,
@@ -251,8 +257,17 @@ func (c *problemCollector) scan(ctx context.Context, workers int) error {
 	s := checkRules(ctx, workers, c.cfg, entries)
 
 	c.lock.Lock()
+	defer c.lock.Unlock()
+
 	c.summary = &s
-	c.lock.Unlock()
+
+	fileOwners := map[string]string{}
+	for _, entry := range entries {
+		if entry.Owner != "" {
+			fileOwners[entry.ReportedPath] = entry.Owner
+		}
+	}
+	c.fileOwners = fileOwners
 
 	return nil
 }
@@ -267,6 +282,10 @@ func (c *problemCollector) Collect(ch chan<- prometheus.Metric) {
 
 	if c.summary == nil {
 		return
+	}
+
+	for filename, owner := range c.fileOwners {
+		ch <- prometheus.MustNewConstMetric(c.fileOwnersMetric, prometheus.GaugeValue, 1, filename, owner)
 	}
 
 	done := map[string]prometheus.Metric{}

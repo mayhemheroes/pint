@@ -37,7 +37,7 @@ func (c RangeQueryCheck) Reporter() string {
 	return RangeQueryCheckName
 }
 
-func (c RangeQueryCheck) Check(ctx context.Context, rule parser.Rule, entries []discovery.Entry) (problems []Problem) {
+func (c RangeQueryCheck) Check(ctx context.Context, path string, rule parser.Rule, entries []discovery.Entry) (problems []Problem) {
 	expr := rule.Expr()
 
 	if expr.SyntaxError != nil {
@@ -85,7 +85,7 @@ func (c RangeQueryCheck) Check(ctx context.Context, rule parser.Rule, entries []
 		})
 	}
 
-	return
+	return problems
 }
 
 func (c RangeQueryCheck) checkNode(ctx context.Context, node *parser.PromQLNode, retention time.Duration, uri string) (problems []exprProblem) {
@@ -104,5 +104,5 @@ func (c RangeQueryCheck) checkNode(ctx context.Context, node *parser.PromQLNode,
 		problems = append(problems, c.checkNode(ctx, child, retention, uri)...)
 	}
 
-	return
+	return problems
 }

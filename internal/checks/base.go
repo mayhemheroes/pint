@@ -16,6 +16,7 @@ var (
 		AlertsCheckName,
 		AlertForCheckName,
 		TemplateCheckName,
+		LabelsConflictCheckName,
 		AggregationCheckName,
 		ComparisonCheckName,
 		FragileCheckName,
@@ -26,17 +27,20 @@ var (
 		VectorMatchingCheckName,
 		CostCheckName,
 		SeriesCheckName,
+		RuleDuplicateCheckName,
 		LabelCheckName,
 		RuleLinkCheckName,
 		RejectCheckName,
 	}
 	OnlineChecks = []string{
 		AlertsCheckName,
+		LabelsConflictCheckName,
 		RangeQueryCheckName,
 		RateCheckName,
 		VectorMatchingCheckName,
 		CostCheckName,
 		SeriesCheckName,
+		RuleDuplicateCheckName,
 		RuleLinkCheckName,
 	}
 )
@@ -109,7 +113,7 @@ type RuleChecker interface {
 	String() string
 	Reporter() string
 	Meta() CheckMeta
-	Check(ctx context.Context, rule parser.Rule, entries []discovery.Entry) []Problem
+	Check(ctx context.Context, path string, rule parser.Rule, entries []discovery.Entry) []Problem
 }
 
 type exprProblem struct {
@@ -142,7 +146,7 @@ func textAndSeverityFromError(err error, reporter, prom string, s Severity) (tex
 		}
 		severity = s
 	}
-	return
+	return text, severity
 }
 
 func promText(name, uri string) string {

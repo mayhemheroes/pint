@@ -19,8 +19,6 @@ import (
 	"github.com/cloudflare/pint/internal/output"
 )
 
-var cacheExpiry = time.Minute * 5
-
 type QueryError struct {
 	err error
 	msg string
@@ -38,7 +36,7 @@ type querier interface {
 	Endpoint() string
 	String() string
 	CacheKey() uint64
-	CacheAfter() int
+	CacheTTL() time.Duration
 	Run() queryResult
 }
 
@@ -48,9 +46,8 @@ type queryRequest struct {
 }
 
 type queryResult struct {
-	value   any
-	err     error
-	expires time.Time
+	value any
+	err   error
 }
 
 func sanitizeURI(s string) string {
@@ -167,7 +164,7 @@ func processJob(prom *Prometheus, job queryRequest) queryResult {
 				Str("query", job.query.String()).
 				Uint64("key", cacheKey).
 				Msg("Cache hit")
-			return cached
+			return queryResult{value: cached}
 		}
 	}
 
@@ -206,7 +203,7 @@ func processJob(prom *Prometheus, job queryRequest) queryResult {
 	}
 
 	if prom.cache != nil {
-		prom.cache.set(cacheKey, result, job.query.CacheAfter())
+		prom.cache.set(cacheKey, result.value, job.query.CacheTTL(), job.query.Endpoint())
 	}
 
 	return result

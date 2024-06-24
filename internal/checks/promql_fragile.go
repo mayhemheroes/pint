@@ -32,7 +32,7 @@ func (c FragileCheck) Reporter() string {
 	return FragileCheckName
 }
 
-func (c FragileCheck) Check(ctx context.Context, rule parser.Rule, entries []discovery.Entry) (problems []Problem) {
+func (c FragileCheck) Check(ctx context.Context, path string, rule parser.Rule, entries []discovery.Entry) (problems []Problem) {
 	expr := rule.Expr()
 	if expr.SyntaxError != nil {
 		return nil
@@ -47,7 +47,7 @@ func (c FragileCheck) Check(ctx context.Context, rule parser.Rule, entries []dis
 			Severity: Warning,
 		})
 	}
-	return
+	return problems
 }
 
 func (c FragileCheck) checkNode(node *parser.PromQLNode) (problems []exprProblem) {
@@ -96,5 +96,5 @@ NEXT:
 		problems = append(problems, c.checkNode(child)...)
 	}
 
-	return
+	return problems
 }

@@ -66,8 +66,10 @@ func simpleProm(name, uri string, timeout time.Duration, required bool) *promapi
 		[]*promapi.Prometheus{
 			promapi.NewPrometheus(name, uri, map[string]string{"X-Debug": "1"}, timeout, 16, 1000),
 		},
-		1000,
 		required,
+		"up",
+		nil,
+		nil,
 	)
 }
 
@@ -122,7 +124,7 @@ func runTests(t *testing.T, testCases []checkTest) {
 
 			prom := tc.prometheus(uri)
 			if prom != nil {
-				prom.StartWorkers(time.Hour)
+				prom.StartWorkers()
 				defer prom.Close()
 			}
 
@@ -133,7 +135,7 @@ func runTests(t *testing.T, testCases []checkTest) {
 				if tc.ctx != nil {
 					ctx = tc.ctx()
 				}
-				problems := tc.checker(prom).Check(ctx, entry.Rule, tc.entries)
+				problems := tc.checker(prom).Check(ctx, entry.SourcePath, entry.Rule, tc.entries)
 				require.Equal(t, tc.problems(uri), problems)
 			}
 
@@ -156,7 +158,7 @@ func runTests(t *testing.T, testCases []checkTest) {
 		require.NoError(t, err, "cannot parse rule content")
 		t.Run(tc.description+" (bogus rules)", func(t *testing.T) {
 			for _, entry := range entries {
-				_ = tc.checker(nil).Check(context.Background(), entry.Rule, tc.entries)
+				_ = tc.checker(nil).Check(context.Background(), entry.SourcePath, entry.Rule, tc.entries)
 			}
 		})
 	}
@@ -172,6 +174,7 @@ func parseContent(content string) (entries []discovery.Entry, err error) {
 	for _, rule := range rules {
 		entries = append(entries, discovery.Entry{
 			SourcePath:    "fake.yml",
+			ReportedPath:  "fake.yml",
 			ModifiedLines: rule.Lines(),
 			Rule:          rule,
 		})
@@ -527,7 +530,7 @@ func generateSampleStream(labels map[string]string, from, until time.Time, step 
 		})
 		from = from.Add(step)
 	}
-	return
+	return s
 }
 
 func checkErrorBadData(name, uri, err string) string {

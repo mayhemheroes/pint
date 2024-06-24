@@ -17,7 +17,7 @@ level=info msg="Loading configuration file" path=.pint.hcl
       "timeout": "2m",
       "concurrency": 16,
       "rateLimit": 100,
-      "cache": 10000,
+      "uptime": "up",
       "required": true
     },
     {
@@ -26,19 +26,7 @@ level=info msg="Loading configuration file" path=.pint.hcl
       "timeout": "2m0s",
       "concurrency": 32,
       "rateLimit": 100,
-      "cache": 10000,
-      "required": false
-    },
-    {
-      "name": "custom-cache",
-      "uri": "http://127.0.0.1",
-      "headers": {
-        "X-Foo": "bar"
-      },
-      "timeout": "10s",
-      "concurrency": 16,
-      "rateLimit": 100,
-      "cache": 32,
+      "uptime": "up",
       "required": false
     },
     {
@@ -47,7 +35,7 @@ level=info msg="Loading configuration file" path=.pint.hcl
       "timeout": "15s",
       "concurrency": 16,
       "rateLimit": 1,
-      "cache": 10000,
+      "uptime": "up",
       "required": false
     }
   ],
@@ -57,6 +45,7 @@ level=info msg="Loading configuration file" path=.pint.hcl
       "alerts/count",
       "alerts/for",
       "alerts/template",
+      "labels/conflict",
       "promql/aggregate",
       "alerts/comparison",
       "promql/fragile",
@@ -67,6 +56,7 @@ level=info msg="Loading configuration file" path=.pint.hcl
       "promql/vector_matching",
       "query/cost",
       "promql/series",
+      "rule/duplicate",
       "rule/label",
       "rule/link",
       "rule/reject"
@@ -169,15 +159,6 @@ prometheus "custom-concurrency" {
   uri         = "http://127.0.0.1"
   required    = false
   concurrency = 32
-}
-
-prometheus "custom-cache" {
-  uri      = "http://127.0.0.1"
-  timeout  = "10s"
-  cache    = 32
-  headers  = {
-    "X-Foo": "bar"
-  }
 }
 
 prometheus "custom-rateLimit" {

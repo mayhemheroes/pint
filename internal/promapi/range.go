@@ -31,6 +31,7 @@ type rangeQuery struct {
 	ctx  context.Context
 	expr string
 	r    v1.Range
+	ttl  time.Duration
 }
 
 func (q rangeQuery) Run() queryResult {
@@ -66,7 +67,8 @@ func (q rangeQuery) Run() queryResult {
 		return qr
 	}
 
-	qr.value, qr.err = streamSampleStream(resp.Body, q.r.Step)
+	ranges, err := streamSampleStream(resp.Body, q.r.Step)
+	qr.value, qr.err = ranges, err
 	return qr
 }
 
@@ -78,12 +80,12 @@ func (q rangeQuery) String() string {
 	return q.expr
 }
 
-func (q rangeQuery) CacheAfter() int {
-	return 1
-}
-
 func (q rangeQuery) CacheKey() uint64 {
 	return hash(q.prom.unsafeURI, q.Endpoint(), q.expr, q.r.Start.Format(time.RFC3339), q.r.End.Round(q.r.Step).Format(time.RFC3339), output.HumanizeDuration(q.r.Step))
+}
+
+func (q rangeQuery) CacheTTL() time.Duration {
+	return q.ttl
 }
 
 type RangeQueryTimes interface {
@@ -136,6 +138,7 @@ func (p *Prometheus) RangeQuery(ctx context.Context, expr string, params RangeQu
 					End:   s.End,
 					Step:  step,
 				},
+				ttl: s.End.Sub(start) + time.Minute*10,
 			},
 		}
 

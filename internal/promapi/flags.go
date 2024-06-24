@@ -33,7 +33,7 @@ func (q flagsQuery) Run() queryResult {
 	ctx, cancel := context.WithTimeout(q.ctx, q.prom.timeout)
 	defer cancel()
 
-	qr := queryResult{expires: q.timestamp.Add(cacheExpiry * 2)}
+	var qr queryResult
 
 	args := url.Values{}
 	resp, err := q.prom.doRequest(ctx, http.MethodGet, q.Endpoint(), args)
@@ -48,7 +48,8 @@ func (q flagsQuery) Run() queryResult {
 		return qr
 	}
 
-	qr.value, qr.err = streamFlags(resp.Body)
+	flags, err := streamFlags(resp.Body)
+	qr.value, qr.err = flags, err
 	return qr
 }
 
@@ -60,12 +61,12 @@ func (q flagsQuery) String() string {
 	return "/api/v1/status/flags"
 }
 
-func (q flagsQuery) CacheAfter() int {
-	return 0
+func (q flagsQuery) CacheKey() uint64 {
+	return hash(q.prom.unsafeURI, q.Endpoint())
 }
 
-func (q flagsQuery) CacheKey() uint64 {
-	return hash(q.prom.unsafeURI, q.Endpoint(), q.timestamp.Round(cacheExpiry).Format(time.RFC3339))
+func (q flagsQuery) CacheTTL() time.Duration {
+	return time.Minute * 10
 }
 
 func (p *Prometheus) Flags(ctx context.Context) (*FlagsResult, error) {

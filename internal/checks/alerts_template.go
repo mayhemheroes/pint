@@ -90,7 +90,7 @@ func (c TemplateCheck) Reporter() string {
 	return TemplateCheckName
 }
 
-func (c TemplateCheck) Check(ctx context.Context, rule parser.Rule, entries []discovery.Entry) (problems []Problem) {
+func (c TemplateCheck) Check(ctx context.Context, path string, rule parser.Rule, entries []discovery.Entry) (problems []Problem) {
 	if rule.AlertingRule == nil {
 		return nil
 	}
@@ -482,8 +482,7 @@ func checkMetricLabels(msg, name, text string, metricLabels []string, excludeLab
 				}
 				if found == excludeLabels {
 					if _, ok := done[v[1]]; !ok {
-						msg := fmt.Sprintf(msg, v[1])
-						msgs = append(msgs, msg)
+						msgs = append(msgs, fmt.Sprintf(msg, v[1]))
 						done[v[1]] = struct{}{}
 					}
 				}
@@ -491,7 +490,7 @@ func checkMetricLabels(msg, name, text string, metricLabels []string, excludeLab
 		}
 	}
 
-	return
+	return msgs
 }
 
 func absentLabels(f utils.PromQLFragment) []string {

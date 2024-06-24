@@ -1,5 +1,105 @@
 # Changelog
 
+## v0.37.0
+
+### Added
+
+- Added `pint_rule_file_owner` metric.
+
+## v0.36.0
+
+### Added
+
+- Added ability to expand environment variables in pint configuration file.
+  See [configuration](configuration.md) for details.
+
+## v0.35.0
+
+### Added
+
+- Use [uber-go/automaxprocs](https://github.com/uber-go/automaxprocs) to
+  automatically set GOMAXPROCS to match Linux container CPU quota.
+- Added [labels/conflict](checks/labels/conflict.md) check.
+- If you want to disable invididual checks just for some time then you can now
+  snooze them instead of disabling forever.
+
+  The difference between `# pint disable ...` and `# pint snooze ...` comments is that
+  the snooze comment must include a timestamp. Selected check will be disabled *until*
+  that timestamp.
+  Timestamp must either use [RFC3339](https://www.rfc-editor.org/rfc/rfc3339) syntax
+  or `YYYY-MM-DD` (if you don't care about time and want to snooze until given date).
+  Examples:
+
+  ```yaml
+  # pint snooze 2023-01-12T10:00:00Z promql/series
+  # pint snooze 2023-01-12 promql/rate
+  - record: ...
+    expr: ...
+  ```
+
+### Changed
+
+- Removed `cache` option from `prometheus` config blocks. Query cache will now auto-size itself
+  as needed.
+
+  If you have a config entry with `cache` option, example:
+
+  ```javascript
+  prometheus "prod" {
+    uri   = "https://prometheus.example.com"
+    cache = 20000
+  }
+  ```
+
+  Then pint will fail to start. To fix this simply remove the `cache` option:
+
+  ```javascript
+  prometheus "prod" {
+    uri = "https://prometheus.example.com"
+  }
+  ```
+
+## v0.34.0
+
+### Added
+
+- Added [rule/duplicate](checks/rule/duplicate.md) check.
+
+## v0.33.1
+
+### Fixed
+
+- Fixed a regression causing poor query cache hit rate.
+
+## v0.33.0
+
+### Added
+
+- Added `uptime` field in `prometheus` configuration block.
+  This field can be used to set a custom metric used for Prometheus uptime checks
+  and by default uses `up` metric.
+  If you have a Prometheus with a large number of scrape targets there might
+  be a huge number of `up` time series making those uptime checks slow to run.
+  If your Prometheus is configured to scrape itself, then you most likely want to use
+  one of metrics exported by Prometheus, like `prometheus_build_info`:
+
+  ```javascript
+  prometheus "prod" {
+    uri    = "https://prometheus.example.com"
+    uptime = "prometheus_build_info"
+  }
+  ```
+
+### Changed
+
+- Refactored some quries used by [promql/series](checks/promql/series.md) check to
+  avoid sending quries that might be very slow and/or return a huge amount of data.
+- Prometheus query cache now takes into account the size of cached response.
+  This makes memory usage needed for query cache more predictable.
+  As a result the `cache` option for `prometheus` config block now means
+  `the number of time series cached` instead of `the number of responses cached`
+  and the default for this option is now `50000`.
+
 ## v0.32.1
 
 ### Fixed

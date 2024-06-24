@@ -46,6 +46,8 @@ pint_check_duration_seconds_sum{check="alerts/for"}
 pint_check_duration_seconds_count{check="alerts/for"}
 pint_check_duration_seconds_sum{check="alerts/template"}
 pint_check_duration_seconds_count{check="alerts/template"}
+pint_check_duration_seconds_sum{check="labels/conflict"}
+pint_check_duration_seconds_count{check="labels/conflict"}
 pint_check_duration_seconds_sum{check="promql/fragile"}
 pint_check_duration_seconds_count{check="promql/fragile"}
 pint_check_duration_seconds_sum{check="promql/range_query"}
@@ -60,6 +62,8 @@ pint_check_duration_seconds_sum{check="promql/syntax"}
 pint_check_duration_seconds_count{check="promql/syntax"}
 pint_check_duration_seconds_sum{check="promql/vector_matching"}
 pint_check_duration_seconds_count{check="promql/vector_matching"}
+pint_check_duration_seconds_sum{check="rule/duplicate"}
+pint_check_duration_seconds_count{check="rule/duplicate"}
 # HELP pint_check_iterations_total Total number of completed check iterations since pint start
 # TYPE pint_check_iterations_total counter
 pint_check_iterations_total
@@ -87,6 +91,14 @@ pint_problems
 # TYPE pint_prometheus_cache_evictions_total counter
 pint_prometheus_cache_evictions_total{name="prom1"}
 pint_prometheus_cache_evictions_total{name="prom2"}
+# HELP pint_prometheus_cache_hits_total Total number of query cache hits
+# TYPE pint_prometheus_cache_hits_total counter
+pint_prometheus_cache_hits_total{endpoint="/api/v1/query",name="prom1"}
+pint_prometheus_cache_hits_total{endpoint="/api/v1/query",name="prom2"}
+pint_prometheus_cache_hits_total{endpoint="/api/v1/status/config",name="prom1"}
+pint_prometheus_cache_hits_total{endpoint="/api/v1/status/config",name="prom2"}
+pint_prometheus_cache_hits_total{endpoint="/api/v1/status/flags",name="prom1"}
+pint_prometheus_cache_hits_total{endpoint="/api/v1/status/flags",name="prom2"}
 # HELP pint_prometheus_cache_miss_total Total number of query cache misses
 # TYPE pint_prometheus_cache_miss_total counter
 pint_prometheus_cache_miss_total{endpoint="/api/v1/query",name="prom1"}
